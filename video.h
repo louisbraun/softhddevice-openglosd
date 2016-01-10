@@ -170,6 +170,15 @@ extern void VideoOsdClear(void);
     /// Draw an OSD ARGB image.
 extern void VideoOsdDrawARGB(int, int, int, int, int, const uint8_t *, int,
     int);
+    
+    /// Activate displaying OSD
+void ActivateOsd(void);
+    /// Get VDPAU DEVICE
+extern void *GetVDPAUDevice(void);
+    /// Get VDPAU GetProcAddress
+extern void *GetVDPAUProcAdress(void);
+    /// Get VDPAU OSD Output Surface
+extern void *GetVDPAUOutputSurface(void);
 
     /// Get OSD size.
 extern void VideoGetOsdSize(int *, int *);

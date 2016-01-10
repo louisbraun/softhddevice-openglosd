@@ -30,7 +30,9 @@ ifneq ($(SWRESAMPLE),1)
 AVRESAMPLE ?= $(shell pkg-config --exists libavresample && echo 1)
 endif
 
-CONFIG := # -DDEBUG #-DOSD_DEBUG	# enable debug output+functions
+OPENGLOSD ?= 1
+
+CONFIG := # -DDEBUG #-DOSD_DEBUG        # enable debug output+functions
 #CONFIG += -DSTILL_DEBUG=2		# still picture debug verbose level
 
 CONFIG += -DAV_INFO -DAV_INFO_TIME=3000	# info/debug a/v sync
@@ -134,6 +136,14 @@ _CFLAGS += $(shell pkg-config --cflags libavresample)
 LIBS += $(shell pkg-config --libs libavresample)
 endif
 
+ifeq ($(OPENGLOSD),1)
+CONFIG += -DUSE_OPENGLOSD
+_CFLAGS += $(shell pkg-config --cflags glew)
+LIBS += $(shell pkg-config --libs glew) -lglut
+_CFLAGS += $(shell pkg-config --cflags freetype2)
+LIBS   += $(shell pkg-config --libs freetype2)
+endif
+
 _CFLAGS += $(shell pkg-config --cflags libavcodec x11 x11-xcb xcb xcb-icccm)
 LIBS += -lrt $(shell pkg-config --libs libavcodec x11 x11-xcb xcb xcb-icccm)
 
@@ -154,6 +164,9 @@ override CFLAGS	  += $(_CFLAGS) $(DEFINES) $(INCLUDES) \
 ### The object files (add further files here):
 
 OBJS = $(PLUGIN).o softhddev.o video.o audio.o codec.o ringbuffer.o
+ifeq ($(OPENGLOSD),1)
+OBJS += openglosd.o
+endif
 
 SRCS = $(wildcard $(OBJS:.o=.c)) $(PLUGIN).cpp
 

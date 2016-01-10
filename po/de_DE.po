@@ -486,6 +486,9 @@ msgstr "OSD Breite"
 msgid "Osd height"
 msgstr "OSD Höhe"
 
+msgid "GPU mem used for image caching (MB)"
+msgstr ""
+
 msgid "Suspend"
 msgstr "Unterbrechen"
 
@@ -1166,6 +1169,10 @@ msgid "video/vdpau: can't destroy grab render output surface: %s\n"
 msgstr ""
 
 msgid "video/vdpau preemption device not our device\n"
+msgstr ""
+
+#, c-format
+msgid "[softhddev: video/vdpau: created vdpaudevice %zu procadress %zu \n"
 msgstr ""
 
 #, c-format

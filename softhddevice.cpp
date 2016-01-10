@@ -37,6 +37,10 @@
 #include "softhddevice.h"
 #include "softhddevice_service.h"
 
+#ifdef USE_OPENGLOSD
+#include "openglosd.h"
+#endif
+
 extern "C"
 {
 #include <stdint.h>
@@ -174,6 +178,10 @@ static int ConfigPipAltVideoHeight = 50;	///< config pip alt. video height in %
 
 #ifdef USE_SCREENSAVER
 static char ConfigEnableDPMSatBlackScreen;	///< Enable DPMS(Screensaver) while displaying black screen(radio)
+#endif
+
+#ifdef USE_OPENGLOSD
+static int ConfigMaxSizeGPUImageCache = 128;  ///< maximum size of GPU mem to be used for image caching
 #endif
 
 static volatile int DoMakePrimary;	///< switch primary device to this
@@ -631,15 +639,41 @@ class cSoftOsdProvider:public cOsdProvider
 {
   private:
     static cOsd *Osd;			///< single OSD
+#ifdef USE_OPENGLOSD
+    static cOglThread *oglThread;
+    void StartOpenGlThread(void);
+protected:
+    virtual int StoreImageData(const cImage &Image);
+    virtual void DropImageData(int ImageHandle);
+#endif
   public:
     virtual cOsd * CreateOsd(int, int, uint);
     virtual bool ProvidesTrueColor(void);
+#ifdef USE_OPENGLOSD
+    static const cImage *GetImageData(int ImageHandle);
+#endif
     cSoftOsdProvider(void);		///< OSD provider constructor
-    //virtual ~cSoftOsdProvider();	///< OSD provider destructor
+    virtual ~cSoftOsdProvider();	///< OSD provider destructor
 };
 
 cOsd *cSoftOsdProvider::Osd;		///< single osd
 
+#ifdef USE_OPENGLOSD
+cOglThread *cSoftOsdProvider::oglThread;    ///< openGL worker Thread
+
+int cSoftOsdProvider::StoreImageData(const cImage &Image)
+{
+    StartOpenGlThread();
+    int imgHandle = oglThread->StoreImage(Image);
+    return imgHandle;
+}
+
+void cSoftOsdProvider::DropImageData(int ImageHandle)
+{
+    StartOpenGlThread();
+    oglThread->DropImageData(ImageHandle);
+}
+#endif
 /**
 **	Create a new OSD.
 **
@@ -649,11 +683,14 @@ cOsd *cSoftOsdProvider::Osd;		///< single osd
 */
 cOsd *cSoftOsdProvider::CreateOsd(int left, int top, uint level)
 {
-#ifdef OSD_DEBUG
+#ifdef USE_OPENGLOSD
+    dsyslog("[softhddev]%s: %d, %d, %d, using OpenGL OSD support\n", __FUNCTION__, left, top, level);
+    StartOpenGlThread();
+    return Osd = new cOglOsd(left, top, level, oglThread); 
+#else
     dsyslog("[softhddev]%s: %d, %d, %d\n", __FUNCTION__, left, top, level);
-#endif
-
     return Osd = new cSoftOsd(left, top, level);
+#endif
 }
 
 /**
@@ -666,6 +703,22 @@ bool cSoftOsdProvider::ProvidesTrueColor(void)
     return true;
 }
 
+#ifdef USE_OPENGLOSD
+const cImage *cSoftOsdProvider::GetImageData(int ImageHandle) {
+    return cOsdProvider::GetImageData(ImageHandle);
+}
+
+void cSoftOsdProvider::StartOpenGlThread(void) {
+    if (!oglThread) {
+        dsyslog("[softhddev]%s: starting openGL Thread\n", __FUNCTION__);
+        cCondWait wait;
+        oglThread = new cOglThread(&wait, ConfigMaxSizeGPUImageCache);
+        wait.Wait();
+        dsyslog("[softhddev]%s: openGL Thread started\n", __FUNCTION__);
+    }    
+}
+#endif
+
 /**
 **	Create cOsdProvider class.
 */
@@ -675,15 +728,24 @@ cSoftOsdProvider::cSoftOsdProvider(void)
 #ifdef OSD_DEBUG
     dsyslog("[softhddev]%s:\n", __FUNCTION__);
 #endif
+#ifdef USE_OPENGLOSD
+    oglThread = NULL;
+#endif
+
 }
 
 /**
 **	Destroy cOsdProvider class.
+*/
 cSoftOsdProvider::~cSoftOsdProvider()
 {
+#ifdef OSD_DEBUG
     dsyslog("[softhddev]%s:\n", __FUNCTION__);
+#endif
+#ifdef USE_OPENGLOSD
+    delete oglThread;
+#endif
 }
-*/
 
 //////////////////////////////////////////////////////////////////////////////
 //	cMenuSetupPage
@@ -777,6 +839,10 @@ class cMenuSetupSoft:public cMenuSetupPage
 
 #ifdef USE_SCREENSAVER
     int EnableDPMSatBlackScreen;
+#endif
+
+#ifdef USE_OPENGLOSD
+    int MaxSizeGPUImageCache;
 #endif
     /// @}
   private:
@@ -880,6 +946,9 @@ void cMenuSetupSoft::Create(void)
 	    Add(new cMenuEditIntItem(tr("Osd width"), &OsdWidth, 0, 4096));
 	    Add(new cMenuEditIntItem(tr("Osd height"), &OsdHeight, 0, 4096));
 	}
+#ifdef USE_OPENGLOSD    
+    Add(new cMenuEditIntItem(tr("GPU mem used for image caching (MB)"), &MaxSizeGPUImageCache, 0, 4000));
+#endif
 	//
 	//	suspend
 	//
@@ -1222,6 +1291,10 @@ cMenuSetupSoft::cMenuSetupSoft(void)
     EnableDPMSatBlackScreen = ConfigEnableDPMSatBlackScreen;
 #endif
 
+#ifdef USE_OPENGLOSD
+    MaxSizeGPUImageCache = ConfigMaxSizeGPUImageCache;
+#endif
+
     Create();
 }
 
@@ -1397,6 +1470,11 @@ void cMenuSetupSoft::Store(void)
     SetupStore("EnableDPMSatBlackScreen", ConfigEnableDPMSatBlackScreen =
 	EnableDPMSatBlackScreen);
     SetDPMSatBlackScreen(ConfigEnableDPMSatBlackScreen);
+#endif
+
+#ifdef USE_OPENGLOSD
+    SetupStore("MaxSizeGPUImageCache", ConfigMaxSizeGPUImageCache =
+    MaxSizeGPUImageCache);
 #endif
 }
 
@@ -3296,6 +3374,13 @@ bool cPluginSoftHdDevice::SetupParse(const char *name, const char *value)
 	ConfigEnableDPMSatBlackScreen = atoi(value);
 	SetDPMSatBlackScreen(ConfigEnableDPMSatBlackScreen);
 	return true;
+    }
+#endif
+
+#ifdef USE_OPENGLOSD
+    if (!strcasecmp(name, "MaxSizeGPUImageCache")) {
+    ConfigMaxSizeGPUImageCache = atoi(value);
+    return true;
     }
 #endif
 

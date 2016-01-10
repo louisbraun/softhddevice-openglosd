@@ -6810,6 +6810,10 @@ static int VdpauInit(const char *display_name)
     status =
 	vdp_device_create_x11(XlibDisplay, DefaultScreen(XlibDisplay),
 	&VdpauDevice, &VdpauGetProcAddress);
+
+    Error(_("[softhddev: video/vdpau: created vdpaudevice %zu procadress %zu \n"),
+        VdpauDevice, VdpauGetProcAddress);
+
     if (status != VDP_STATUS_OK) {
 	Error(_("video/vdpau: Can't create vdp device on display '%s'\n"),
 	    display_name);
@@ -9484,13 +9488,13 @@ static void VdpauOsdInit(int width, int height)
 		Error(_("video/vdpau: can't create output surface: %s\n"),
 		    VdpauGetErrorString(status));
 	    }
-	    Debug(4,
-		"video/vdpau: created osd output surface %dx%d with id 0x%08x\n",
+	    Debug(3,
+		"[softhddev]video/vdpau: created osd output surface %dx%d with id 0x%08x\n",
 		width, height, VdpauOsdOutputSurface[i]);
 	}
     }
 #endif
-    Debug(3, "video/vdpau: osd surfaces created\n");
+    Debug(3, "[softhddev]video/vdpau: osd surfaces created\n");
 }
 
 ///
@@ -9806,6 +9810,21 @@ void VideoOsdDrawARGB(int xi, int yi, int width, int height, int pitch,
     OsdShown = 1;
 
     VideoThreadUnlock();
+}
+
+void ActivateOsd(void) {
+    OsdShown = 1;
+}
+
+void *GetVDPAUDevice(void) {
+    return (void*)VdpauDevice;
+}
+void *GetVDPAUProcAdress(void) {
+    return (void*)VdpauGetProcAddress;
+}
+
+void *GetVDPAUOutputSurface(void) {
+    return (void*)VdpauOsdOutputSurface[VdpauOsdSurfaceIndex];
 }
 
 ///
