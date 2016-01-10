@@ -9237,9 +9237,18 @@ static void VdpauDisplayHandlerThread(void)
 
     if (!decoded) {			// nothing decoded, sleep
 	// FIXME: sleep on wakeup
-	usleep(1 * 1000);
+	//usleep(1 * 1000);
+	usleep(5 * 1000);
     }
-    // all decoder buffers are full
+    
+	clock_gettime(CLOCK_MONOTONIC, &nowtime);
+    // time for one frame over?
+    if ((nowtime.tv_sec - VdpauFrameTime.tv_sec) * 1000 * 1000 * 1000 +
+	(nowtime.tv_nsec - VdpauFrameTime.tv_nsec) < 15 * 1000 * 1000) {
+	return;
+    }
+/*
+	// all decoder buffers are full
     // and display is not preempted
     // speed up filling display queue, wait on display queue empty
     if (!allfull || VdpauPreemption) {
@@ -9257,7 +9266,7 @@ static void VdpauDisplayHandlerThread(void)
 	    return;
 	}
     }
-
+*/
     pthread_mutex_lock(&VideoLockMutex);
     VdpauSyncDisplayFrame();
     pthread_mutex_unlock(&VideoLockMutex);
