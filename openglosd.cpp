@@ -9,7 +9,6 @@ void ConvertColor(const GLint &colARGB, glm::vec4 &col) {
     col.r = ((colARGB & 0x00FF0000) >> 16) / 255.0;
     col.g = ((colARGB & 0x0000FF00) >> 8 ) / 255.0;
     col.b = ((colARGB & 0x000000FF)      ) / 255.0;
-    //col.a = -1.0f * (col.a - 1.0f) * (col.a - 1.0f) + 1.0f;
 }
 
 /****************************************************************************************
@@ -302,10 +301,6 @@ cOglFont::cOglFont(const char *fontName, int charHeight) : name(fontName) {
     int error = FT_New_Face(ftLib, fontName, 0, &face);
     if (error)
         esyslog("[softhddev]ERROR: failed to open %s!", *name);
-    
-    if (face->num_fixed_sizes && face->available_sizes) { // fixed font
-        esyslog("[softhddev]: fixed font");
-    }
 
     FT_Set_Char_Size(face, 0, charHeight * 64, 0, 0);
     height = (face->size->metrics.ascender - face->size->metrics.descender + 63) / 64;
@@ -635,6 +630,17 @@ void cOglVb::DisableBlending(void) {
     glDisable(GL_BLEND);
 }
 
+void cOglVb::SetBlendingFunction(eBlendingMethod method) {
+    switch (method) {
+        case bmStandard:
+            glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+            break;
+        case bmText:
+            glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+            break;
+    }
+}
+
 void cOglVb::SetShaderColor(GLint color) {
     glm::vec4 col;
     ConvertColor(color, col);
@@ -653,12 +659,6 @@ void cOglVb::SetShaderProjectionMatrix(GLint width, GLint height) {
 void cOglVb::SetVertexData(GLfloat *vertices, int count) {
     if (count == 0)
         count = numVertices;
-    /*
-    esyslog("[softhddev] SetVertexData");
-    for (int i=0; i < sizeVertex*count; i++) {
-        esyslog("[softhddev] vertex data %i: %f", i, vertices[i]);
-    }
-    */
     glBindBuffer(GL_ARRAY_BUFFER, vbo);
     glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(GLfloat) * (sizeVertex1 + sizeVertex2) * count, vertices);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
@@ -777,7 +777,6 @@ bool cOglCmdCopyBufferToOutputFb::Execute(void) {
     fb->BindRead();
     oFb->BindWrite();
     fb->Blit(x, y + fb->Height(), x + fb->Width(), y);
-    //fb->Blit(x, y, x + fb->Width(), y + fb->Height());
     oFb->Unbind();
 
     ActivateOsd();
@@ -1126,6 +1125,7 @@ bool cOglCmdDrawText::Execute(void) {
     if (!f)
         return false;
 
+    VertexBuffers[vbText]->SetBlendingFunction(bmText);
     VertexBuffers[vbText]->ActivateShader();
     VertexBuffers[vbText]->SetShaderColor(colorText);
     VertexBuffers[vbText]->SetShaderProjectionMatrix(fb->Width(), fb->Height());
@@ -1181,6 +1181,7 @@ bool cOglCmdDrawText::Execute(void) {
     glBindTexture(GL_TEXTURE_2D, 0);
     VertexBuffers[vbText]->Unbind();
     fb->Unbind();
+    VertexBuffers[vbText]->SetBlendingFunction(bmStandard);
     return true;
 }
 
@@ -1201,8 +1202,6 @@ cOglCmdDrawImage::~cOglCmdDrawImage(void) {
 }
 
 bool cOglCmdDrawImage::Execute(void) {
-    //esyslog("[softhddev]drawing image width %d height %d x %d y %d", width, height, x, y);
-
     GLuint texture;
     glGenTextures(1, &texture);
     glBindTexture(GL_TEXTURE_2D, texture);
@@ -1272,19 +1271,6 @@ bool cOglCmdDrawTexture::Execute(void) {
     GLfloat y1 = y;                    //left
     GLfloat x2 = x + imageRef->width;  //right
     GLfloat y2 = y + imageRef->height; //bottom
-
-/*
-    GLfloat quadVertices[] = {
-        // Pos    // TexCoords
-        x1,  y1,  0.0f, 1.0f,          //left top
-        x1,  y2,  0.0f, 0.0f,          //left bottom
-        x2,  y2,  1.0f, 0.0f,          //right bottom
-
-        x1,  y1,  0.0f, 1.0f,          //left top
-        x2,  y2,  1.0f, 0.0f,          //right bottom
-        x2,  y1,  1.0f, 1.0f           //right top
-    };
-*/
 
     GLfloat quadVertices[] = {
         // Pos    // TexCoords
@@ -1541,9 +1527,9 @@ void cOglThread::Action(void) {
         delete cmd;        
     }
    
-    esyslog("[softhddev]Cleaning up OpenGL stuff");
+    dsyslog("[softhddev]Cleaning up OpenGL stuff");
     Cleanup();
-    esyslog("[softhddev]OpenGL Thread Ended");
+    dsyslog("[softhddev]OpenGL Thread Ended");
 }
 
 bool cOglThread::InitOpenGL(void) {
@@ -1556,19 +1542,18 @@ bool cOglThread::InitOpenGL(void) {
     glutInitWindowPosition (0, 0);
     glutCreateWindow("");
     glutHideWindow();
-    esyslog("[softhddev]created Glut Window");
+    dsyslog("[softhddev]created Glut Window");
 
     GLenum err = glewInit();
     if( err != GLEW_OK) {
         esyslog("[softhddev]glewInit failed, aborting\n");
         return false;
     } else {
-        esyslog("[softhddev]glewInit ok\n");;        
+        dsyslog("[softhddev]glewInit ok\n");;        
     }
     glEnable(GL_BLEND);
+    VertexBuffers[vbText]->SetBlendingFunction(bmStandard);
 
-    //glBlendFunc(GL_SRC_ALPHA_SATURATE, GL_ONE);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     glDisable(GL_DEPTH_TEST);
     return true;
 }
@@ -1705,7 +1690,7 @@ void cOglPixmap::DrawImage(const cPoint &Point, int ImageHandle) {
 }
 
 void cOglPixmap::DrawPixel(const cPoint &Point, tColor Color) {
-    esyslog("[softhddev] DrawPixel %d %x", Point.X(), Color);    
+    esyslog("[softhddev] DrawPixel %d %d color %x not implemented in OpenGl OSD", Point.X(), Point.X(), Color);
 }
 
 void cOglPixmap::DrawBitmap(const cPoint &Point, const cBitmap &Bitmap, tColor ColorFg, tColor ColorBg, bool Overlay) {
@@ -1809,19 +1794,19 @@ void cOglPixmap::DrawSlope(const cRect &Rect, tColor Color, int Type) {
 }
 
 void cOglPixmap::Render(const cPixmap *Pixmap, const cRect &Source, const cPoint &Dest) {
-    esyslog("[softhddev] Render %d %d %d", Pixmap->ViewPort().X(), Source.X(), Dest.X());
+    esyslog("[softhddev] Render %d %d %d not implemented in OpenGl OSD", Pixmap->ViewPort().X(), Source.X(), Dest.X());
 }
 
 void cOglPixmap::Copy(const cPixmap *Pixmap, const cRect &Source, const cPoint &Dest) {
-    esyslog("[softhddev] Copy %d %d %d", Pixmap->ViewPort().X(), Source.X(), Dest.X());
+    esyslog("[softhddev] Copy %d %d %d not implemented in OpenGl OSD", Pixmap->ViewPort().X(), Source.X(), Dest.X());
 }
 
 void cOglPixmap::Scroll(const cPoint &Dest, const cRect &Source) {
-    esyslog("[softhddev] Scroll %d %d", Source.X(), Dest.X());
+    esyslog("[softhddev] Scroll %d %d not implemented in OpenGl OSD", Source.X(), Dest.X());
 }
 
 void cOglPixmap::Pan(const cPoint &Dest, const cRect &Source) {
-    esyslog("[softhddev] Pan %d %d", Source.X(), Dest.X());
+    esyslog("[softhddev] Pan %d %d not implemented in OpenGl OSD", Source.X(), Dest.X());
 }
 
 /******************************************************************************
@@ -1830,14 +1815,13 @@ void cOglPixmap::Pan(const cPoint &Dest, const cRect &Source) {
 cOglOutputFb *cOglOsd::oFb = NULL;
 
 cOglOsd::cOglOsd(int Left, int Top, uint Level, cOglThread *oglThread) : cOsd(Left, Top, Level) {
-    esyslog("[softhddev]cOglOsd Konstruktor");
     this->oglThread = oglThread;
 
     int osdWidth = 0;
     int osdHeight = 0;
 
     VideoGetOsdSize(&osdWidth, &osdHeight);
-    esyslog("[softhddev]cOglOsd osdLeft %d osdTop %d osdWidth %d osdHeight %d", Left, Top, osdWidth, osdHeight);
+    dsyslog("[softhddev]cOglOsd osdLeft %d osdTop %d osdWidth %d osdHeight %d", Left, Top, osdWidth, osdHeight);
 
     //TODO: recreate outputFb if screen size has changed
 
@@ -1849,7 +1833,6 @@ cOglOsd::cOglOsd(int Left, int Top, uint Level, cOglThread *oglThread) : cOsd(Le
 }
 
 cOglOsd::~cOglOsd() {
-    esyslog("[softhddev]cOglOsd Destruktor");
     OsdClose();
     SetActive(false);
     oglThread->DoCmd(new cOglCmdDeleteFb(bFb));
@@ -1925,7 +1908,7 @@ void cOglOsd::Flush(void) {
     //clear buffer
 
     //uint64_t start = cTimeMs::Now();
-    //esyslog("[softhddev]Start Flush at %" PRIu64 "", cTimeMs::Now());
+    //dsyslog("[softhddev]Start Flush at %" PRIu64 "", cTimeMs::Now());
     oglThread->DoCmd(new cOglCmdFill(bFb, clrTransparent));
     //render pixmap textures blended to buffer
     for (int layer = 0; layer < MAXPIXMAPLAYERS; layer++) {
@@ -1946,5 +1929,5 @@ void cOglOsd::Flush(void) {
     }
     //copy buffer to Vdpau output framebuffer 
     oglThread->DoCmd(new cOglCmdCopyBufferToOutputFb(bFb, oFb, Left(), Top()));
-    //esyslog("[softhddev]End Flush at %" PRIu64 ", duration %d", cTimeMs::Now(), (int)(cTimeMs::Now()-start));
+    //dsyslog("[softhddev]End Flush at %" PRIu64 ", duration %d", cTimeMs::Now(), (int)(cTimeMs::Now()-start));
 }

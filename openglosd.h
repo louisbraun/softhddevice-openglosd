@@ -15,9 +15,6 @@
 #include FT_LCD_FILTER_H
 #include FT_STROKER_H
 
-#define HRES  64
-#define DPI   72
-
 #undef __FTERRORS_H__
 #define FT_ERRORDEF( e, v, s )  { e, s },
 #define FT_ERROR_START_LIST     {
@@ -211,6 +208,11 @@ enum eVertexBufferType {
     vbCount
 };
 
+enum eBlendingMethod {
+    bmStandard,
+    bmText
+};
+
 class cOglVb {
 private:
     eVertexBufferType type;
@@ -230,6 +232,7 @@ public:
     void ActivateShader(void);
     void EnableBlending(void);
     void DisableBlending(void);
+    void SetBlendingFunction(eBlendingMethod method);
     void SetShaderColor(GLint color);
     void SetShaderAlpha(GLint alpha);
     void SetShaderProjectionMatrix(GLint width, GLint height);
