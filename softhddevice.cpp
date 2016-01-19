@@ -710,11 +710,10 @@ const cImage *cSoftOsdProvider::GetImageData(int ImageHandle) {
 
 void cSoftOsdProvider::StartOpenGlThread(void) {
     if (!oglThread) {
-        dsyslog("[softhddev]%s: starting openGL Thread\n", __FUNCTION__);
         cCondWait wait;
         oglThread = new cOglThread(&wait, ConfigMaxSizeGPUImageCache);
         wait.Wait();
-        dsyslog("[softhddev]%s: openGL Thread started\n", __FUNCTION__);
+        dsyslog("[softhddev]openGL Thread started");
     }    
 }
 #endif

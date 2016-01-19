@@ -624,21 +624,11 @@ void cOglVb::ActivateShader(void) {
 
 void cOglVb::EnableBlending(void) {
     glEnable(GL_BLEND);
+    glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE);
 }
 
 void cOglVb::DisableBlending(void) {
     glDisable(GL_BLEND);
-}
-
-void cOglVb::SetBlendingFunction(eBlendingMethod method) {
-    switch (method) {
-        case bmStandard:
-            glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
-            break;
-        case bmText:
-            glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-            break;
-    }
 }
 
 void cOglVb::SetShaderColor(GLint color) {
@@ -1125,7 +1115,6 @@ bool cOglCmdDrawText::Execute(void) {
     if (!f)
         return false;
 
-    VertexBuffers[vbText]->SetBlendingFunction(bmText);
     VertexBuffers[vbText]->ActivateShader();
     VertexBuffers[vbText]->SetShaderColor(colorText);
     VertexBuffers[vbText]->SetShaderProjectionMatrix(fb->Width(), fb->Height());
@@ -1181,7 +1170,6 @@ bool cOglCmdDrawText::Execute(void) {
     glBindTexture(GL_TEXTURE_2D, 0);
     VertexBuffers[vbText]->Unbind();
     fb->Unbind();
-    VertexBuffers[vbText]->SetBlendingFunction(bmStandard);
     return true;
 }
 
@@ -1542,18 +1530,13 @@ bool cOglThread::InitOpenGL(void) {
     glutInitWindowPosition (0, 0);
     glutCreateWindow("");
     glutHideWindow();
-    dsyslog("[softhddev]created Glut Window");
 
     GLenum err = glewInit();
     if( err != GLEW_OK) {
         esyslog("[softhddev]glewInit failed, aborting\n");
         return false;
-    } else {
-        dsyslog("[softhddev]glewInit ok\n");;        
     }
-    glEnable(GL_BLEND);
-    VertexBuffers[vbText]->SetBlendingFunction(bmStandard);
-
+    VertexBuffers[vbText]->EnableBlending();
     glDisable(GL_DEPTH_TEST);
     return true;
 }
@@ -1821,7 +1804,7 @@ cOglOsd::cOglOsd(int Left, int Top, uint Level, cOglThread *oglThread) : cOsd(Le
     int osdHeight = 0;
 
     VideoGetOsdSize(&osdWidth, &osdHeight);
-    dsyslog("[softhddev]cOglOsd osdLeft %d osdTop %d osdWidth %d osdHeight %d", Left, Top, osdWidth, osdHeight);
+    dsyslog("[softhddev]cOglOsd osdLeft %d osdTop %d screenWidth %d screenHeight %d", Left, Top, osdWidth, osdHeight);
 
     //TODO: recreate outputFb if screen size has changed
 

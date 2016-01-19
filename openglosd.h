@@ -208,11 +208,6 @@ enum eVertexBufferType {
     vbCount
 };
 
-enum eBlendingMethod {
-    bmStandard,
-    bmText
-};
-
 class cOglVb {
 private:
     eVertexBufferType type;
@@ -232,7 +227,6 @@ public:
     void ActivateShader(void);
     void EnableBlending(void);
     void DisableBlending(void);
-    void SetBlendingFunction(eBlendingMethod method);
     void SetShaderColor(GLint color);
     void SetShaderAlpha(GLint alpha);
     void SetShaderProjectionMatrix(GLint width, GLint height);
