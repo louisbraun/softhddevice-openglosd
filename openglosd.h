@@ -414,11 +414,13 @@ public:
 * cOglThread
 ******************************************************************************/
 #define OGL_MAX_OSDIMAGES 256
+#define OGL_CMDQUEUE_SIZE 100
 
 class cOglThread : public cThread {
 private:
     cCondWait *startWait;
     cCondWait *wait;
+    bool stalled;
     std::queue<cOglCmd*> commands;
     GLint maxTextureSize;
     sOglImage imageCache[OGL_MAX_OSDIMAGES];

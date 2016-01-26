@@ -1334,6 +1334,7 @@ bool cOglCmdDropImage::Execute(void) {
 * cOglThread
 ******************************************************************************/
 cOglThread::cOglThread(cCondWait *startWait, int maxCacheSize) : cThread("oglThread") {
+    stalled = false;
     memCached = 0;
     this->maxCacheSize = maxCacheSize * 1024 * 1024;
     this->startWait = startWait;
@@ -1350,22 +1351,27 @@ cOglThread::cOglThread(cCondWait *startWait, int maxCacheSize) : cThread("oglThr
 }
 
 cOglThread::~cOglThread() {
-    Cancel(-1);
-    while (Active())
-        cCondWait::SleepMs(50);
+    Cancel(2);
     delete wait;
 }
 
 void cOglThread::DoCmd(cOglCmd* cmd) {
+    while (stalled)
+        cCondWait::SleepMs(10);
+    
     bool doSignal = false;
     Lock();
     if (commands.size() == 0)
         doSignal = true;
     commands.push(cmd);
     Unlock();
-    if (doSignal) {
-        wait->Signal();
+
+    if (commands.size() > OGL_CMDQUEUE_SIZE) {
+        stalled = true;
     }
+
+    if (doSignal || stalled)
+        wait->Signal();
 }
 
 int cOglThread::StoreImage(const cImage &image) {
@@ -1494,7 +1500,6 @@ void cOglThread::Action(void) {
     //now Thread is ready to do his job
     startWait->Signal();
     
-    //int numQueueElements;
     while(Running()) {
 
         if (commands.empty()) {
@@ -1505,14 +1510,13 @@ void cOglThread::Action(void) {
         Lock();
         cOglCmd* cmd = commands.front();
         commands.pop();
-        //numQueueElements = commands.size();
         Unlock();
         //uint64_t start = cTimeMs::Now();
-        //bool ok = cmd->Execute();
         cmd->Execute();
-        //esyslog("[softhddev]\"%s\", ok: %d, %dms, %d commands left", cmd->Description(), ok, (int)(cTimeMs::Now() - start), numQueueElements);
-        //esyslog("[softhddev]\"%s\", time %" PRIu64 "", cmd->Description(), cTimeMs::Now());
-        delete cmd;        
+        //esyslog("[softhddev]\"%s\", %dms, %d commands left, time %" PRIu64 "", cmd->Description(), (int)(cTimeMs::Now() - start), commands.size(), cTimeMs::Now());
+        delete cmd;
+        if (stalled && commands.size() < OGL_CMDQUEUE_SIZE / 2)
+            stalled = false;
     }
    
     dsyslog("[softhddev]Cleaning up OpenGL stuff");
