@@ -641,7 +641,7 @@ class cSoftOsdProvider:public cOsdProvider
     static cOsd *Osd;			///< single OSD
 #ifdef USE_OPENGLOSD
     static cOglThread *oglThread;
-    void StartOpenGlThread(void);
+    bool StartOpenGlThread(void);
 protected:
     virtual int StoreImageData(const cImage &Image);
     virtual void DropImageData(int ImageHandle);
@@ -650,6 +650,7 @@ protected:
     virtual cOsd * CreateOsd(int, int, uint);
     virtual bool ProvidesTrueColor(void);
 #ifdef USE_OPENGLOSD
+    static void StopOpenGlThread(void);
     static const cImage *GetImageData(int ImageHandle);
 #endif
     cSoftOsdProvider(void);		///< OSD provider constructor
@@ -663,15 +664,17 @@ cOglThread *cSoftOsdProvider::oglThread;    ///< openGL worker Thread
 
 int cSoftOsdProvider::StoreImageData(const cImage &Image)
 {
-    StartOpenGlThread();
-    int imgHandle = oglThread->StoreImage(Image);
-    return imgHandle;
+    if (StartOpenGlThread()) {
+        int imgHandle = oglThread->StoreImage(Image);
+        return imgHandle;
+    }
+    return 0;
 }
 
 void cSoftOsdProvider::DropImageData(int ImageHandle)
 {
-    StartOpenGlThread();
-    oglThread->DropImageData(ImageHandle);
+    if (StartOpenGlThread())
+        oglThread->DropImageData(ImageHandle);
 }
 #endif
 /**
@@ -685,8 +688,9 @@ cOsd *cSoftOsdProvider::CreateOsd(int left, int top, uint level)
 {
 #ifdef USE_OPENGLOSD
     dsyslog("[softhddev]%s: %d, %d, %d, using OpenGL OSD support\n", __FUNCTION__, left, top, level);
-    StartOpenGlThread();
-    return Osd = new cOglOsd(left, top, level, oglThread); 
+    if (StartOpenGlThread())
+        return Osd = new cOglOsd(left, top, level, oglThread);
+    return NULL;
 #else
     dsyslog("[softhddev]%s: %d, %d, %d\n", __FUNCTION__, left, top, level);
     return Osd = new cSoftOsd(left, top, level);
@@ -708,13 +712,28 @@ const cImage *cSoftOsdProvider::GetImageData(int ImageHandle) {
     return cOsdProvider::GetImageData(ImageHandle);
 }
 
-void cSoftOsdProvider::StartOpenGlThread(void) {
-    if (!oglThread) {
-        cCondWait wait;
-        oglThread = new cOglThread(&wait, ConfigMaxSizeGPUImageCache);
-        wait.Wait();
+bool cSoftOsdProvider::StartOpenGlThread(void) {
+    if (oglThread) {
+        if (oglThread->Active()) {
+            return true;
+        }
+        delete oglThread;
+    }
+    cCondWait wait;
+    oglThread = new cOglThread(&wait, ConfigMaxSizeGPUImageCache);
+    wait.Wait();
+    if (oglThread->Active()) {
         dsyslog("[softhddev]openGL Thread started");
-    }    
+        return true;
+    }
+    dsyslog("[softhddev]openGL Thread NOT successfully started");
+    return false;
+}
+
+void cSoftOsdProvider::StopOpenGlThread(void) {
+    delete oglThread;
+    oglThread = NULL;
+    dsyslog("[softhddev]openGL Thread ended");
 }
 #endif
 
@@ -743,6 +762,7 @@ cSoftOsdProvider::~cSoftOsdProvider()
 #endif
 #ifdef USE_OPENGLOSD
     delete oglThread;
+    oglThread = NULL;
 #endif
 }
 
@@ -2271,6 +2291,9 @@ eOSState cSoftHdMenu::ProcessKey(eKeys key)
 			ConfigSuspendX11);
 		    SuspendMode = SUSPEND_NORMAL;
 		}
+#ifdef USE_OPENGLOSD
+        cSoftOsdProvider::StopOpenGlThread();
+#endif
 		if (ShutdownHandler.GetUserInactiveTime()) {
 		    dsyslog("[softhddev]%s: set user inactive\n",
 			__FUNCTION__);
@@ -3574,6 +3597,9 @@ cString cPluginSoftHdDevice::SVDRPCommand(const char *command,
 	cControl::Attach();
 	Suspend(ConfigSuspendClose, ConfigSuspendClose, ConfigSuspendX11);
 	SuspendMode = SUSPEND_NORMAL;
+#ifdef USE_OPENGLOSD
+    cSoftOsdProvider::StopOpenGlThread();
+#endif
 	return "SoftHdDevice is suspended";
     }
     if (!strcasecmp(command, "RESU")) {
@@ -3604,6 +3630,9 @@ cString cPluginSoftHdDevice::SVDRPCommand(const char *command,
 	cControl::Attach();
 	Suspend(1, 1, 0);
 	SuspendMode = SUSPEND_DETACHED;
+#ifdef USE_OPENGLOSD
+    cSoftOsdProvider::StopOpenGlThread();
+#endif
 	return "SoftHdDevice is detached";
     }
     if (!strcasecmp(command, "ATTA")) {

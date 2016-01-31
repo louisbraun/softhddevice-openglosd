@@ -1472,24 +1472,28 @@ void cOglThread::Action(void) {
 
     if (!InitOpenGL()) {
         esyslog("[softhddev]Could not initiate OpenGL Context");
+        startWait->Signal();
         return;
     }
     dsyslog("[softhddev]OpenGL Context initialized");
     
     if (!InitShaders()) {
         esyslog("[softhddev]Could not initiate Shaders");
+        startWait->Signal();
         return;
     }
     dsyslog("[softhddev]Shaders initialized");
     
     if (!InitVdpauInterop()) {
         esyslog("[softhddev]: vdpau interop NOT initialized");
+        startWait->Signal();
         return;
     }
     dsyslog("[softhddev]vdpau interop initialized");
 
     if (!InitVertexBuffers()) {
         esyslog("[softhddev]: Vertex Buffers NOT initialized");
+        startWait->Signal();
         return;
     }
     dsyslog("[softhddev]Vertex buffers initialized");
@@ -1589,9 +1593,11 @@ void cOglThread::DeleteVertexBuffers(void) {
 void cOglThread::Cleanup(void) {
     DeleteVertexBuffers();
     delete cOglOsd::oFb;
+    cOglOsd::oFb = NULL;
     DeleteShaders();
     glVDPAUFiniNV();
     cOglFont::Cleanup();
+    glutExit();
 }
 
 /****************************************************************************************
@@ -1809,8 +1815,6 @@ cOglOsd::cOglOsd(int Left, int Top, uint Level, cOglThread *oglThread) : cOsd(Le
 
     VideoGetOsdSize(&osdWidth, &osdHeight);
     dsyslog("[softhddev]cOglOsd osdLeft %d osdTop %d screenWidth %d screenHeight %d", Left, Top, osdWidth, osdHeight);
-
-    //TODO: recreate outputFb if screen size has changed
 
     //create vdpau output framebuffer
     if (!oFb) {
