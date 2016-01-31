@@ -1351,6 +1351,11 @@ cOglThread::cOglThread(cCondWait *startWait, int maxCacheSize) : cThread("oglThr
 }
 
 cOglThread::~cOglThread() {
+    for (int i = 0; i < OGL_MAX_OSDIMAGES; i++) {
+        if (imageCache[i].used && imageCache[i].texture != GL_NONE) {
+            glDeleteTextures(1, &imageCache[i].texture);
+        }
+    }
     Cancel(2);
     delete wait;
 }
