@@ -1477,6 +1477,7 @@ void cOglThread::Action(void) {
 
     if (!InitOpenGL()) {
         esyslog("[softhddev]Could not initiate OpenGL Context");
+        Cleanup();
         startWait->Signal();
         return;
     }
@@ -1484,6 +1485,7 @@ void cOglThread::Action(void) {
     
     if (!InitShaders()) {
         esyslog("[softhddev]Could not initiate Shaders");
+        Cleanup();
         startWait->Signal();
         return;
     }
@@ -1491,6 +1493,7 @@ void cOglThread::Action(void) {
     
     if (!InitVdpauInterop()) {
         esyslog("[softhddev]: vdpau interop NOT initialized");
+        Cleanup();
         startWait->Signal();
         return;
     }
@@ -1498,6 +1501,7 @@ void cOglThread::Action(void) {
 
     if (!InitVertexBuffers()) {
         esyslog("[softhddev]: Vertex Buffers NOT initialized");
+        Cleanup();
         startWait->Signal();
         return;
     }
