@@ -720,10 +720,11 @@ bool cSoftOsdProvider::StartOpenGlThread(void) {
         delete oglThread;
     }
     cCondWait wait;
+    dsyslog("[softhddev]Trying to start OpenGL Worker Thread");
     oglThread = new cOglThread(&wait, ConfigMaxSizeGPUImageCache);
     wait.Wait();
     if (oglThread->Active()) {
-        dsyslog("[softhddev]openGL Thread started");
+        dsyslog("[softhddev]OpenGL Worker Thread successfully started");
         return true;
     }
     dsyslog("[softhddev]openGL Thread NOT successfully started");
@@ -731,9 +732,10 @@ bool cSoftOsdProvider::StartOpenGlThread(void) {
 }
 
 void cSoftOsdProvider::StopOpenGlThread(void) {
+    dsyslog("[softhddev]stopping OpenGL Worker Thread ");
     delete oglThread;
     oglThread = NULL;
-    dsyslog("[softhddev]openGL Thread ended");
+    dsyslog("[softhddev]OpenGL Worker Thread stopped");
 }
 #endif
 
@@ -2292,7 +2294,8 @@ eOSState cSoftHdMenu::ProcessKey(eKeys key)
 		    SuspendMode = SUSPEND_NORMAL;
 		}
 #ifdef USE_OPENGLOSD
-        cSoftOsdProvider::StopOpenGlThread();
+    dsyslog("[softhddev]stopping Ogl Thread osUser1");
+    cSoftOsdProvider::StopOpenGlThread();
 #endif
 		if (ShutdownHandler.GetUserInactiveTime()) {
 		    dsyslog("[softhddev]%s: set user inactive\n",
@@ -2436,6 +2439,10 @@ void cSoftHdDevice::MakePrimaryDevice(bool on)
     } else if (SuspendMode == NOT_SUSPENDED) {
 	Suspend(1, 1, 0);
 	SuspendMode = SUSPEND_DETACHED;
+#ifdef USE_OPENGLOSD
+    dsyslog("[softhddev]stopping Ogl Thread MakePrimaryDevice");
+    cSoftOsdProvider::StopOpenGlThread();
+#endif
     }
 }
 
@@ -2499,7 +2506,11 @@ bool cSoftHdDevice::SetPlayMode(ePlayMode play_mode)
 	    // FIXME: what if already suspended?
 	    Suspend(1, 1, 0);
 	    SuspendMode = SUSPEND_EXTERNAL;
-	    return true;
+#ifdef USE_OPENGLOSD
+    dsyslog("[softhddev]stopping Ogl Thread pmExtern_THIS_SHOULD_BE_AVOIDED");
+    cSoftOsdProvider::StopOpenGlThread();
+#endif
+    return true;
 	default:
 	    dsyslog("[softhddev] playmode not implemented... %d\n", play_mode);
 	    break;
@@ -2959,7 +2970,6 @@ const char *cPluginSoftHdDevice::CommandLineHelp(void)
 bool cPluginSoftHdDevice::ProcessArgs(int argc, char *argv[])
 {
     //dsyslog("[softhddev]%s:\n", __FUNCTION__);
-
     return::ProcessArgs(argc, argv);
 }
 
@@ -3041,6 +3051,10 @@ void cPluginSoftHdDevice::Housekeeping(void)
 	cControl::Attach();
 	Suspend(ConfigSuspendClose, ConfigSuspendClose, ConfigSuspendX11);
 	SuspendMode = SUSPEND_NORMAL;
+#ifdef USE_OPENGLOSD
+    dsyslog("[softhddev]stopping Ogl Thread Housekeeping");
+    cSoftOsdProvider::StopOpenGlThread();
+#endif
     }
 
     ::Housekeeping();
@@ -3598,6 +3612,7 @@ cString cPluginSoftHdDevice::SVDRPCommand(const char *command,
 	Suspend(ConfigSuspendClose, ConfigSuspendClose, ConfigSuspendX11);
 	SuspendMode = SUSPEND_NORMAL;
 #ifdef USE_OPENGLOSD
+    dsyslog("[softhddev]stopping Ogl Thread svdrp STAT");
     cSoftOsdProvider::StopOpenGlThread();
 #endif
 	return "SoftHdDevice is suspended";
@@ -3631,6 +3646,7 @@ cString cPluginSoftHdDevice::SVDRPCommand(const char *command,
 	Suspend(1, 1, 0);
 	SuspendMode = SUSPEND_DETACHED;
 #ifdef USE_OPENGLOSD
+    dsyslog("[softhddev]stopping Ogl Thread svdrp DETA");
     cSoftOsdProvider::StopOpenGlThread();
 #endif
 	return "SoftHdDevice is detached";

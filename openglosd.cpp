@@ -1473,8 +1473,6 @@ void cOglThread::DropImageData(int imageHandle) {
 
 
 void cOglThread::Action(void) {
-    dsyslog("[softhddev]Starting OpenGL Thread");
-
     if (!InitOpenGL()) {
         esyslog("[softhddev]Could not initiate OpenGL Context");
         Cleanup();
@@ -1534,20 +1532,28 @@ void cOglThread::Action(void) {
    
     dsyslog("[softhddev]Cleaning up OpenGL stuff");
     Cleanup();
-    dsyslog("[softhddev]OpenGL Thread Ended");
+    dsyslog("[softhddev]OpenGL Worker Thread Ended");
 }
 
 bool cOglThread::InitOpenGL(void) {
+    const char *displayName = X11DisplayName;
+    if (!displayName && !(displayName = getenv("DISPLAY"))) {
+        displayName = "0:0";
+    }
+    dsyslog("[softhddev]OpenGL using display %s", displayName);
+
     int argc = 1;
-    char dummy[] = { "" };
-    char *argv = dummy;
-    glutInit(&argc, &argv);
+    cString display = cString::sprintf("-display %s", displayName);
+    char* buffer[1];
+    buffer[0] = strdup(*display);
+    char **argv = buffer;
+    glutInit(&argc, argv);
     glutInitDisplayMode (GLUT_SINGLE | GLUT_RGBA | GLUT_ALPHA);
     glutInitWindowSize (1, 1);
     glutInitWindowPosition (0, 0);
     glutCreateWindow("");
     glutHideWindow();
-
+    free(buffer[0]);
     GLenum err = glewInit();
     if( err != GLEW_OK) {
         esyslog("[softhddev]glewInit failed, aborting\n");
