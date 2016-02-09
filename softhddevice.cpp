@@ -690,7 +690,8 @@ cOsd *cSoftOsdProvider::CreateOsd(int left, int top, uint level)
     dsyslog("[softhddev]%s: %d, %d, %d, using OpenGL OSD support\n", __FUNCTION__, left, top, level);
     if (StartOpenGlThread())
         return Osd = new cOglOsd(left, top, level, oglThread);
-    return NULL;
+    //return dummy osd if shd is detached
+    return Osd = new cSoftOsd(left, top, 999);
 #else
     dsyslog("[softhddev]%s: %d, %d, %d\n", __FUNCTION__, left, top, level);
     return Osd = new cSoftOsd(left, top, level);
@@ -713,6 +714,11 @@ const cImage *cSoftOsdProvider::GetImageData(int ImageHandle) {
 }
 
 bool cSoftOsdProvider::StartOpenGlThread(void) {
+    //only try to start worker thread if shd is attached
+    //otherwise glutInit() crashes
+    if (SuspendMode != NOT_SUSPENDED) {
+        return false;
+    }
     if (oglThread) {
         if (oglThread->Active()) {
             return true;
