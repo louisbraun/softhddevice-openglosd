@@ -624,7 +624,7 @@ void cOglVb::ActivateShader(void) {
 
 void cOglVb::EnableBlending(void) {
     glEnable(GL_BLEND);
-    glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE);
+    glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
 }
 
 void cOglVb::DisableBlending(void) {
