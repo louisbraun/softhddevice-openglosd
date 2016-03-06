@@ -712,9 +712,6 @@ bool cOglCmdRenderFbToBufferFb::Execute(void) {
     GLfloat x2 = x + fb->ViewportWidth();  //right
     GLfloat y2 = y + fb->ViewportHeight(); //bottom
 
-    if (fb->Scrollable()) {
-    }
-
     GLfloat texX1 = 0.0f;
     GLfloat texY1 = 0.0f;
     GLfloat texX2 = 1.0f;
@@ -1824,7 +1821,8 @@ cOglOutputFb *cOglOsd::oFb = NULL;
 
 cOglOsd::cOglOsd(int Left, int Top, uint Level, cOglThread *oglThread) : cOsd(Left, Top, Level) {
     this->oglThread = oglThread;
-
+    bFb = NULL;
+    isSubtitleOsd = false;
     int osdWidth = 0;
     int osdHeight = 0;
 
@@ -1846,12 +1844,18 @@ cOglOsd::~cOglOsd() {
 
 eOsdError cOglOsd::SetAreas(const tArea *Areas, int NumAreas) {
     cRect r;
+    if (NumAreas > 1)
+        isSubtitleOsd = true;
     for (int i = 0; i < NumAreas; i++)
         r.Combine(cRect(Areas[i].x1, Areas[i].y1, Areas[i].Width(), Areas[i].Height()));
 
     tArea area = { r.Left(), r.Top(), r.Right(), r.Bottom(), 32 };
 
     //now we know the actuaL osd size, create double buffer frame buffer
+    if (bFb) {
+        oglThread->DoCmd(new cOglCmdDeleteFb(bFb));
+        DestroyPixmap(oglPixmaps[0]);
+    }
     bFb = new cOglFb(r.Width(), r.Height(), r.Width(), r.Height());
     cCondWait initiated;
     oglThread->DoCmd(new cOglCmdInitFb(bFb, &initiated));
@@ -1861,7 +1865,6 @@ eOsdError cOglOsd::SetAreas(const tArea *Areas, int NumAreas) {
 }
 
 cPixmap *cOglOsd::CreatePixmap(int Layer, const cRect &ViewPort, const cRect &DrawPort) {
-
     LOCK_PIXMAPS;
     int width = DrawPort.IsEmpty() ? ViewPort.Width() : DrawPort.Width();
     int height = DrawPort.IsEmpty() ? ViewPort.Height() : DrawPort.Height();
@@ -1892,7 +1895,10 @@ void cOglOsd::DestroyPixmap(cPixmap *Pixmap) {
     if (!Pixmap)
         return;
     LOCK_PIXMAPS;
-    for (int i = 1; i < oglPixmaps.Size(); i++) {
+    int start = 1;
+    if (isSubtitleOsd)
+        start = 0;
+    for (int i = start; i < oglPixmaps.Size(); i++) {
         if (oglPixmaps[i] == Pixmap) {
             if (Pixmap->Layer() >= 0)
                 oglPixmaps[0]->SetDirty();
@@ -1912,10 +1918,10 @@ void cOglOsd::Flush(void) {
     if (!dirty)
         return;
     //clear buffer
-
     //uint64_t start = cTimeMs::Now();
     //dsyslog("[softhddev]Start Flush at %" PRIu64 "", cTimeMs::Now());
     oglThread->DoCmd(new cOglCmdFill(bFb, clrTransparent));
+
     //render pixmap textures blended to buffer
     for (int layer = 0; layer < MAXPIXMAPLAYERS; layer++) {
         for (int i = 0; i < oglPixmaps.Size(); i++) {
@@ -1924,7 +1930,7 @@ void cOglOsd::Flush(void) {
                     oglThread->DoCmd(new cOglCmdRenderFbToBufferFb( oglPixmaps[i]->Fb(), 
                                                                     bFb, 
                                                                     oglPixmaps[i]->ViewPort().X(), 
-                                                                    oglPixmaps[i]->ViewPort().Y(), 
+                                                                    (!isSubtitleOsd) ? oglPixmaps[i]->ViewPort().Y() : 0,
                                                                     oglPixmaps[i]->Alpha(),
                                                                     oglPixmaps[i]->DrawPort().X(),
                                                                     oglPixmaps[i]->DrawPort().Y()));
@@ -1933,7 +1939,12 @@ void cOglOsd::Flush(void) {
             }
         }
     }
-    //copy buffer to Vdpau output framebuffer 
+    //copy buffer to Vdpau output framebuffer
     oglThread->DoCmd(new cOglCmdCopyBufferToOutputFb(bFb, oFb, Left(), Top()));
     //dsyslog("[softhddev]End Flush at %" PRIu64 ", duration %d", cTimeMs::Now(), (int)(cTimeMs::Now()-start));
+}
+
+void cOglOsd::DrawScaledBitmap(int x, int y, const cBitmap &Bitmap, double FactorX, double FactorY, bool AntiAlias) {
+    int yNew = y - oglPixmaps[0]->ViewPort().Y();
+    oglPixmaps[0]->DrawBitmap(cPoint(x, yNew), Bitmap);
 }

@@ -491,6 +491,7 @@ private:
     cOglFb *bFb;
     cOglThread *oglThread;
     cVector<cOglPixmap *> oglPixmaps;
+    bool isSubtitleOsd;
 protected:
 public:
     cOglOsd(int Left, int Top, uint Level, cOglThread *oglThread);
@@ -499,6 +500,7 @@ public:
     virtual cPixmap *CreatePixmap(int Layer, const cRect &ViewPort, const cRect &DrawPort = cRect::Null);
     virtual void DestroyPixmap(cPixmap *Pixmap);
     virtual void Flush(void);
+    virtual void DrawScaledBitmap(int x, int y, const cBitmap &Bitmap, double FactorX, double FactorY, bool AntiAlias = false);
     static cOglOutputFb *oFb;
 };
 
