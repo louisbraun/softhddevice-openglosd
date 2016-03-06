@@ -1616,7 +1616,7 @@ void cOglThread::Cleanup(void) {
 * cOglPixmap
 ****************************************************************************************/
 
-cOglPixmap::cOglPixmap(cOglThread *oglThread, int Layer, const cRect &ViewPort, const cRect &DrawPort) : cPixmap(Layer, ViewPort, DrawPort) {
+cOglPixmap::cOglPixmap(std::shared_ptr<cOglThread> oglThread, int Layer, const cRect &ViewPort, const cRect &DrawPort) : cPixmap(Layer, ViewPort, DrawPort) {
     this->oglThread = oglThread;
     int width = DrawPort.IsEmpty() ? ViewPort.Width() : DrawPort.Width();
     int height = DrawPort.IsEmpty() ? ViewPort.Height() : DrawPort.Height();
@@ -1819,7 +1819,7 @@ void cOglPixmap::Pan(const cPoint &Dest, const cRect &Source) {
 ******************************************************************************/
 cOglOutputFb *cOglOsd::oFb = NULL;
 
-cOglOsd::cOglOsd(int Left, int Top, uint Level, cOglThread *oglThread) : cOsd(Left, Top, Level) {
+cOglOsd::cOglOsd(int Left, int Top, uint Level, std::shared_ptr<cOglThread> oglThread) : cOsd(Left, Top, Level) {
     this->oglThread = oglThread;
     bFb = NULL;
     isSubtitleOsd = false;

@@ -157,7 +157,7 @@ DEFINES += -DPLUGIN_NAME_I18N='"$(PLUGIN)"' -D_GNU_SOURCE $(CONFIG) \
 ### Make it standard
 
 override CXXFLAGS += $(_CFLAGS) $(DEFINES) $(INCLUDES) \
-    -g -W -Wall -Wextra -Winit-self -Werror=overloaded-virtual
+    -g -W -Wall -Wextra -Winit-self -Werror=overloaded-virtual -std=c++0x
 override CFLAGS	  += $(_CFLAGS) $(DEFINES) $(INCLUDES) \
     -g -W -Wall -Wextra -Winit-self -Wdeclaration-after-statement
 

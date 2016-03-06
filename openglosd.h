@@ -26,6 +26,7 @@ const struct {
 #include FT_ERRORS_H
 
 
+#include <memory>
 #include <queue>
 
 #include <vdr/plugin.h>
@@ -453,10 +454,10 @@ public:
 class cOglPixmap : public cPixmap {
 private:
     cOglFb *fb;
-    cOglThread *oglThread;
+    std::shared_ptr<cOglThread> oglThread;
     bool dirty;
 public:
-    cOglPixmap(cOglThread *oglThread, int Layer, const cRect &ViewPort, const cRect &DrawPort = cRect::Null);
+    cOglPixmap(std::shared_ptr<cOglThread> oglThread, int Layer, const cRect &ViewPort, const cRect &DrawPort = cRect::Null);
     virtual ~cOglPixmap(void);
     cOglFb *Fb(void) { return fb; };
     int X(void) { return ViewPort().X(); };
@@ -489,12 +490,12 @@ public:
 class cOglOsd : public cOsd {
 private:
     cOglFb *bFb;
-    cOglThread *oglThread;
+    std::shared_ptr<cOglThread> oglThread;
     cVector<cOglPixmap *> oglPixmaps;
     bool isSubtitleOsd;
 protected:
 public:
-    cOglOsd(int Left, int Top, uint Level, cOglThread *oglThread);
+    cOglOsd(int Left, int Top, uint Level, std::shared_ptr<cOglThread> oglThread);
     virtual ~cOglOsd();
     virtual eOsdError SetAreas(const tArea *Areas, int NumAreas);
     virtual cPixmap *CreatePixmap(int Layer, const cRect &ViewPort, const cRect &DrawPort = cRect::Null);

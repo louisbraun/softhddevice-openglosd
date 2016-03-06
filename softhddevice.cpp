@@ -640,7 +640,7 @@ class cSoftOsdProvider:public cOsdProvider
   private:
     static cOsd *Osd;			///< single OSD
 #ifdef USE_OPENGLOSD
-    static cOglThread *oglThread;
+    static std::shared_ptr<cOglThread> oglThread;
     bool StartOpenGlThread(void);
 protected:
     virtual int StoreImageData(const cImage &Image);
@@ -660,7 +660,7 @@ protected:
 cOsd *cSoftOsdProvider::Osd;		///< single osd
 
 #ifdef USE_OPENGLOSD
-cOglThread *cSoftOsdProvider::oglThread;    ///< openGL worker Thread
+std::shared_ptr<cOglThread> cSoftOsdProvider::oglThread;    ///< openGL worker Thread
 
 int cSoftOsdProvider::StoreImageData(const cImage &Image)
 {
@@ -719,15 +719,15 @@ bool cSoftOsdProvider::StartOpenGlThread(void) {
     if (SuspendMode != NOT_SUSPENDED) {
         return false;
     }
-    if (oglThread) {
+    if (oglThread.get()) {
         if (oglThread->Active()) {
             return true;
         }
-        delete oglThread;
+        oglThread.reset();
     }
     cCondWait wait;
     dsyslog("[softhddev]Trying to start OpenGL Worker Thread");
-    oglThread = new cOglThread(&wait, ConfigMaxSizeGPUImageCache);
+    oglThread.reset(new cOglThread(&wait, ConfigMaxSizeGPUImageCache));
     wait.Wait();
     if (oglThread->Active()) {
         dsyslog("[softhddev]OpenGL Worker Thread successfully started");
@@ -739,8 +739,7 @@ bool cSoftOsdProvider::StartOpenGlThread(void) {
 
 void cSoftOsdProvider::StopOpenGlThread(void) {
     dsyslog("[softhddev]stopping OpenGL Worker Thread ");
-    delete oglThread;
-    oglThread = NULL;
+    oglThread.reset();
     dsyslog("[softhddev]OpenGL Worker Thread stopped");
 }
 #endif
@@ -755,7 +754,7 @@ cSoftOsdProvider::cSoftOsdProvider(void)
     dsyslog("[softhddev]%s:\n", __FUNCTION__);
 #endif
 #ifdef USE_OPENGLOSD
-    oglThread = NULL;
+    oglThread.reset();
 #endif
 
 }
@@ -769,8 +768,7 @@ cSoftOsdProvider::~cSoftOsdProvider()
     dsyslog("[softhddev]%s:\n", __FUNCTION__);
 #endif
 #ifdef USE_OPENGLOSD
-    delete oglThread;
-    oglThread = NULL;
+    oglThread.reset();
 #endif
 }
 
