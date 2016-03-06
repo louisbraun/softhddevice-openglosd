@@ -1,3 +1,5 @@
+#define __STL_CONFIG_H
+#include <algorithm>
 #include "openglosd.h"
 
 /****************************************************************************************
@@ -1747,12 +1749,12 @@ void cOglPixmap::DrawText(const cPoint &Point, const char *s, tColor ColorFg, tC
         if (Width) {
             if ((Alignment & taLeft) != 0) {
                 if ((Alignment & taBorder) != 0)
-                    x += max(h / TEXT_ALIGN_BORDER, 1);
+                    x += std::max(h / TEXT_ALIGN_BORDER, 1);
                 } else if ((Alignment & taRight) != 0) {
                     if (w < Width)
                         x += Width - w;
                     if ((Alignment & taBorder) != 0)
-                        x -= max(h / TEXT_ALIGN_BORDER, 1);
+                        x -= std::max(h / TEXT_ALIGN_BORDER, 1);
                 } else { // taCentered
                     if (w < Width)
                         x += (Width - w) / 2;
@@ -1871,9 +1873,9 @@ cPixmap *cOglOsd::CreatePixmap(int Layer, const cRect &ViewPort, const cRect &Dr
 
     if (width > oglThread->MaxTextureSize() || height > oglThread->MaxTextureSize()) {
         esyslog("[softhddev] cannot allocate pixmap of %dpx x %dpx, clipped to %dpx x %dpx!", 
-                    width, height, min(width, oglThread->MaxTextureSize()), min(height, oglThread->MaxTextureSize()));
-        width = min(width, oglThread->MaxTextureSize());
-        height = min(height, oglThread->MaxTextureSize());
+                    width, height, std::min(width, oglThread->MaxTextureSize()), std::min(height, oglThread->MaxTextureSize()));
+        width = std::min(width, oglThread->MaxTextureSize());
+        height = std::min(height, oglThread->MaxTextureSize());
     }
 
     cOglPixmap *p = new cOglPixmap(oglThread, Layer, ViewPort, DrawPort);
