@@ -1536,15 +1536,19 @@ void cOglThread::Action(void) {
 
 bool cOglThread::InitOpenGL(void) {
     const char *displayName = X11DisplayName;
-    if (!displayName && !(displayName = getenv("DISPLAY"))) {
-        displayName = "0:0";
+    if (!displayName) {
+        displayName = getenv("DISPLAY");
+        if (!displayName) {
+            displayName = "0:0";
+        }
     }
     dsyslog("[softhddev]OpenGL using display %s", displayName);
 
-    int argc = 1;
-    cString display = cString::sprintf("-display %s", displayName);
-    char* buffer[1];
-    buffer[0] = strdup(*display);
+    int argc = 3;
+    char* buffer[3];
+    buffer[0] = strdup("openglosd");
+    buffer[1] = strdup("-display");
+    buffer[2] = strdup(displayName);
     char **argv = buffer;
     glutInit(&argc, argv);
     glutInitDisplayMode (GLUT_SINGLE | GLUT_RGBA | GLUT_ALPHA);
@@ -1553,6 +1557,8 @@ bool cOglThread::InitOpenGL(void) {
     glutCreateWindow("");
     glutHideWindow();
     free(buffer[0]);
+    free(buffer[1]);
+    free(buffer[2]);
     GLenum err = glewInit();
     if( err != GLEW_OK) {
         esyslog("[softhddev]glewInit failed, aborting\n");
