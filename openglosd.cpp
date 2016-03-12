@@ -1912,6 +1912,7 @@ void cOglOsd::DestroyPixmap(cPixmap *Pixmap) {
 }
 
 void cOglOsd::Flush(void) {
+    LOCK_PIXMAPS;
     //check if any pixmap is dirty
     bool dirty = false;
     for (int i = 0; i < oglPixmaps.Size() && !dirty; i++)
@@ -1947,6 +1948,9 @@ void cOglOsd::Flush(void) {
 }
 
 void cOglOsd::DrawScaledBitmap(int x, int y, const cBitmap &Bitmap, double FactorX, double FactorY, bool AntiAlias) {
+    (void)FactorX;
+    (void)FactorY;
+    (void)AntiAlias;
     int yNew = y - oglPixmaps[0]->ViewPort().Y();
     oglPixmaps[0]->DrawBitmap(cPoint(x, yNew), Bitmap);
 }
