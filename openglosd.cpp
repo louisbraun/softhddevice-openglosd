@@ -1539,7 +1539,7 @@ bool cOglThread::InitOpenGL(void) {
     if (!displayName) {
         displayName = getenv("DISPLAY");
         if (!displayName) {
-            displayName = "0:0";
+            displayName = ":0.0";
         }
     }
     dsyslog("[softhddev]OpenGL using display %s", displayName);
@@ -1554,7 +1554,7 @@ bool cOglThread::InitOpenGL(void) {
     glutInitDisplayMode (GLUT_SINGLE | GLUT_RGBA | GLUT_ALPHA);
     glutInitWindowSize (1, 1);
     glutInitWindowPosition (0, 0);
-    glutCreateWindow("");
+    glutCreateWindow("openglosd");
     glutHideWindow();
     free(buffer[0]);
     free(buffer[1]);
