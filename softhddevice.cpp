@@ -2346,6 +2346,7 @@ class cSoftHdDevice:public cDevice
     cSoftHdDevice(void);
     virtual ~ cSoftHdDevice(void);
 
+    virtual cString DeviceName(void) const { return "softhddevice-openglosd"; }
     virtual bool HasDecoder(void) const;
     virtual bool CanReplay(void) const;
     virtual bool SetPlayMode(ePlayMode);
