@@ -404,8 +404,9 @@ public:
 class cOglCmdDropImage : public cOglCmd {
 private:
     sOglImage *imageRef;
+    cCondWait *wait;
 public:
-    cOglCmdDropImage(sOglImage *imageRef);
+    cOglCmdDropImage(sOglImage *imageRef, cCondWait *wait);
     virtual ~cOglCmdDropImage(void) {};
     virtual const char* Description(void) { return "Drop Image"; }
     virtual bool Execute(void);
@@ -441,6 +442,7 @@ protected:
 public:
     cOglThread(cCondWait *startWait, int maxCacheSize);
     virtual ~cOglThread();
+    void Stop(void);
     void DoCmd(cOglCmd* cmd);
     int StoreImage(const cImage &image);
     void DropImageData(int imageHandle);

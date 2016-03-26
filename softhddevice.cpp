@@ -641,7 +641,7 @@ class cSoftOsdProvider:public cOsdProvider
     static cOsd *Osd;			///< single OSD
 #ifdef USE_OPENGLOSD
     static std::shared_ptr<cOglThread> oglThread;
-    bool StartOpenGlThread(void);
+    static bool StartOpenGlThread(void);
 protected:
     virtual int StoreImageData(const cImage &Image);
     virtual void DropImageData(int ImageHandle);
@@ -652,6 +652,7 @@ protected:
 #ifdef USE_OPENGLOSD
     static void StopOpenGlThread(void);
     static const cImage *GetImageData(int ImageHandle);
+    static void OsdSizeChanged(void);
 #endif
     cSoftOsdProvider(void);		///< OSD provider constructor
     virtual ~cSoftOsdProvider();	///< OSD provider destructor
@@ -713,6 +714,13 @@ const cImage *cSoftOsdProvider::GetImageData(int ImageHandle) {
     return cOsdProvider::GetImageData(ImageHandle);
 }
 
+void cSoftOsdProvider::OsdSizeChanged(void) {
+    //cleanup OpenGl Context
+    cSoftOsdProvider::StopOpenGlThread();
+    cOsdProvider::UpdateOsdSize();
+}
+
+
 bool cSoftOsdProvider::StartOpenGlThread(void) {
     //only try to start worker thread if shd is attached
     //otherwise glutInit() crashes
@@ -739,6 +747,9 @@ bool cSoftOsdProvider::StartOpenGlThread(void) {
 
 void cSoftOsdProvider::StopOpenGlThread(void) {
     dsyslog("[softhddev]stopping OpenGL Worker Thread ");
+    if (oglThread) {
+        oglThread->Stop();
+    }
     oglThread.reset();
     dsyslog("[softhddev]OpenGL Worker Thread stopped");
 }
@@ -754,7 +765,8 @@ cSoftOsdProvider::cSoftOsdProvider(void)
     dsyslog("[softhddev]%s:\n", __FUNCTION__);
 #endif
 #ifdef USE_OPENGLOSD
-    oglThread.reset();
+    StopOpenGlThread();
+    VideoSetVideoEventCallback(&OsdSizeChanged);
 #endif
 
 }
@@ -768,7 +780,7 @@ cSoftOsdProvider::~cSoftOsdProvider()
     dsyslog("[softhddev]%s:\n", __FUNCTION__);
 #endif
 #ifdef USE_OPENGLOSD
-    oglThread.reset();
+    StopOpenGlThread();
 #endif
 }
 

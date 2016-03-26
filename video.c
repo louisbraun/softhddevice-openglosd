@@ -427,7 +427,9 @@ static int OsdDirtyX;			///< osd dirty area x
 static int OsdDirtyY;			///< osd dirty area y
 static int OsdDirtyWidth;		///< osd dirty area width
 static int OsdDirtyHeight;		///< osd dirty area height
-
+#ifdef USE_OPENGLOSD
+static void (*VideoEventCallback)(void) = NULL;  /// callback function to notify VDR about Video Events
+#endif
 static int64_t VideoDeltaPTS;		///< FIXME: fix pts
 
 #ifdef USE_SCREENSAVER
@@ -10077,7 +10079,12 @@ void VideoPollEvent(void)
 	VideoEvent();
     }
 }
-
+#ifdef USE_OPENGLOSD
+void VideoSetVideoEventCallback(void (*videoEventCallback)(void))
+{
+    VideoEventCallback = videoEventCallback;
+}
+#endif
 //----------------------------------------------------------------------------
 //	Thread
 //----------------------------------------------------------------------------
@@ -11162,8 +11169,11 @@ void VideoSetVideoMode( __attribute__ ((unused))
 	return;				// same size nothing todo
     }
 
+#ifdef USE_OPENGLOSD
+    if (VideoEventCallback)
+        VideoEventCallback();
+#endif
     VideoOsdExit();
-    // FIXME: must tell VDR that the OsdSize has been changed!
 
     VideoThreadLock();
     VideoWindowWidth = width;

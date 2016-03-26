@@ -1319,13 +1319,15 @@ bool cOglCmdStoreImage::Execute(void) {
 }
 
 //------------------ cOglCmdDropImage --------------------
-cOglCmdDropImage::cOglCmdDropImage(sOglImage *imageRef) : cOglCmd(NULL) {
+cOglCmdDropImage::cOglCmdDropImage(sOglImage *imageRef, cCondWait *wait) : cOglCmd(NULL) {
     this->imageRef = imageRef;
+    this->wait = wait;
 }
 
 bool cOglCmdDropImage::Execute(void) {
     if (imageRef->texture != GL_NONE)
         glDeleteTextures(1, &imageRef->texture);
+    wait->Signal();
     return true;
 }
 
@@ -1350,13 +1352,18 @@ cOglThread::cOglThread(cCondWait *startWait, int maxCacheSize) : cThread("oglThr
 }
 
 cOglThread::~cOglThread() {
+    delete wait;
+    wait = NULL;
+}
+
+void cOglThread::Stop(void) {
     for (int i = 0; i < OGL_MAX_OSDIMAGES; i++) {
-        if (imageCache[i].used && imageCache[i].texture != GL_NONE) {
-            glDeleteTextures(1, &imageCache[i].texture);
+        if (imageCache[i].used) {
+            DropImageData(i);
         }
     }
     Cancel(2);
-    delete wait;
+    stalled = false;
 }
 
 void cOglThread::DoCmd(cOglCmd* cmd) {
@@ -1464,9 +1471,13 @@ sOglImage *cOglThread::GetImageRef(int slot) {
 
 void cOglThread::DropImageData(int imageHandle) {
     sOglImage *imageRef = GetImageRef(imageHandle);
+    if (!imageRef)
+        return;
     int imgSize = imageRef->width * imageRef->height * sizeof(tColor);
     memCached -= imgSize;
-    DoCmd(new cOglCmdDropImage(imageRef));
+    cCondWait dropWait;
+    DoCmd(new cOglCmdDropImage(imageRef, &dropWait));
+    dropWait.Wait();
     ClearSlot(imageHandle);
 }
 
@@ -1509,6 +1520,7 @@ void cOglThread::Action(void) {
 
     //now Thread is ready to do his job
     startWait->Signal();
+    stalled = false;
     
     while(Running()) {
 
@@ -1633,6 +1645,8 @@ cOglPixmap::cOglPixmap(std::shared_ptr<cOglThread> oglThread, int Layer, const c
 }
 
 cOglPixmap::~cOglPixmap(void) {
+    if (!oglThread->Active())
+        return;
     oglThread->DoCmd(new cOglCmdDeleteFb(fb));
 }
 
@@ -1661,6 +1675,8 @@ void cOglPixmap::SetDrawPortPoint(const cPoint &Point, bool Dirty) {
 }
 
 void cOglPixmap::Clear(void) {
+    if (!oglThread->Active())
+        return;
     LOCK_PIXMAPS;
     oglThread->DoCmd(new cOglCmdFill(fb, clrTransparent));
     SetDirty();
@@ -1668,6 +1684,8 @@ void cOglPixmap::Clear(void) {
 }
 
 void cOglPixmap::Fill(tColor Color) {
+    if (!oglThread->Active())
+        return;
     LOCK_PIXMAPS;
     oglThread->DoCmd(new cOglCmdFill(fb, Color));
     SetDirty();
@@ -1675,6 +1693,8 @@ void cOglPixmap::Fill(tColor Color) {
 }
 
 void cOglPixmap::DrawImage(const cPoint &Point, const cImage &Image) {
+    if (!oglThread->Active())
+        return;
     tColor *argb = MALLOC(tColor, Image.Width() * Image.Height());
     if (!argb)
         return;
@@ -1687,6 +1707,8 @@ void cOglPixmap::DrawImage(const cPoint &Point, const cImage &Image) {
 }
 
 void cOglPixmap::DrawImage(const cPoint &Point, int ImageHandle) {
+    if (!oglThread->Active())
+        return;
     if (ImageHandle < 0 && oglThread->GetImageRef(ImageHandle)) {
             sOglImage *img = oglThread->GetImageRef(ImageHandle);
             oglThread->DoCmd(new cOglCmdDrawTexture(fb, img, Point.X(), Point.Y()));
@@ -1707,6 +1729,8 @@ void cOglPixmap::DrawPixel(const cPoint &Point, tColor Color) {
 }
 
 void cOglPixmap::DrawBitmap(const cPoint &Point, const cBitmap &Bitmap, tColor ColorFg, tColor ColorBg, bool Overlay) {
+    if (!oglThread->Active())
+        return;
     LOCK_PIXMAPS;
     bool specialColors = ColorFg || ColorBg;
     tColor *argb = MALLOC(tColor, Bitmap.Width() * Bitmap.Height());
@@ -1727,6 +1751,8 @@ void cOglPixmap::DrawBitmap(const cPoint &Point, const cBitmap &Bitmap, tColor C
 }
 
 void cOglPixmap::DrawText(const cPoint &Point, const char *s, tColor ColorFg, tColor ColorBg, const cFont *Font, int Width, int Height, int Alignment) {
+    if (!oglThread->Active())
+        return;
     LOCK_PIXMAPS;
     int len = s ? Utf8StrLen(s) : 0;
     unsigned int *symbols = MALLOC(unsigned int, len + 1);
@@ -1786,6 +1812,8 @@ void cOglPixmap::DrawText(const cPoint &Point, const char *s, tColor ColorFg, tC
 }
 
 void cOglPixmap::DrawRectangle(const cRect &Rect, tColor Color) {
+    if (!oglThread->Active())
+        return;
     LOCK_PIXMAPS;
     oglThread->DoCmd(new cOglCmdDrawRectangle(fb, Rect.X(), Rect.Y(), Rect.Width(), Rect.Height(), Color));
     SetDirty();
@@ -1793,6 +1821,8 @@ void cOglPixmap::DrawRectangle(const cRect &Rect, tColor Color) {
 }
 
 void cOglPixmap::DrawEllipse(const cRect &Rect, tColor Color, int Quadrants) {
+    if (!oglThread->Active())
+        return;
     LOCK_PIXMAPS;
     oglThread->DoCmd(new cOglCmdDrawEllipse(fb, Rect.X(), Rect.Y(), Rect.Width(), Rect.Height(), Color, Quadrants));
     SetDirty();
@@ -1800,6 +1830,8 @@ void cOglPixmap::DrawEllipse(const cRect &Rect, tColor Color, int Quadrants) {
 }
 
 void cOglPixmap::DrawSlope(const cRect &Rect, tColor Color, int Type) {
+    if (!oglThread->Active())
+        return;
     LOCK_PIXMAPS;
     oglThread->DoCmd(new cOglCmdDrawSlope(fb, Rect.X(), Rect.Y(), Rect.Width(), Rect.Height(), Color, Type));
     SetDirty();
@@ -1873,6 +1905,8 @@ eOsdError cOglOsd::SetAreas(const tArea *Areas, int NumAreas) {
 }
 
 cPixmap *cOglOsd::CreatePixmap(int Layer, const cRect &ViewPort, const cRect &DrawPort) {
+    if (!oglThread->Active())
+        return NULL;
     LOCK_PIXMAPS;
     int width = DrawPort.IsEmpty() ? ViewPort.Width() : DrawPort.Width();
     int height = DrawPort.IsEmpty() ? ViewPort.Height() : DrawPort.Height();
@@ -1900,6 +1934,8 @@ cPixmap *cOglOsd::CreatePixmap(int Layer, const cRect &ViewPort, const cRect &Dr
 }
 
 void cOglOsd::DestroyPixmap(cPixmap *Pixmap) {
+    if (!oglThread->Active())
+        return;
     if (!Pixmap)
         return;
     LOCK_PIXMAPS;
@@ -1918,6 +1954,8 @@ void cOglOsd::DestroyPixmap(cPixmap *Pixmap) {
 }
 
 void cOglOsd::Flush(void) {
+    if (!oglThread->Active())
+        return;
     LOCK_PIXMAPS;
     //check if any pixmap is dirty
     bool dirty = false;
