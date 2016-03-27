@@ -294,6 +294,7 @@ void cOglGlyph::LoadTexture(FT_BitmapGlyph ftGlyph) {
 ****************************************************************************************/
 FT_Library cOglFont::ftLib = 0;
 cList<cOglFont> *cOglFont::fonts = 0;
+bool cOglFont::initiated = false;
 
 cOglFont::cOglFont(const char *fontName, int charHeight) : name(fontName) {
     size = charHeight;
@@ -331,9 +332,12 @@ void cOglFont::Init(void) {
     fonts = new cList<cOglFont>;
     if (FT_Init_FreeType(&ftLib))
         esyslog("[softhddev]failed to initialize FreeType library!");
+    initiated = true;
 }
 
 void cOglFont::Cleanup(void) {
+    if (!initiated)
+        return;
     delete fonts;
     fonts = 0;
     if (FT_Done_FreeType(ftLib))

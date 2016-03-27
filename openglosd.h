@@ -129,6 +129,7 @@ public:
 ****************************************************************************************/
 class cOglFont : public cListObject {
 private:
+    static bool initiated;
     cString name;
     int size;
     int height;
