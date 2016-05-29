@@ -1207,6 +1207,7 @@ static int AlsaSetup(int *freq, int *channels, int passthrough)
     snd_pcm_uframes_t period_size;
     int err;
     int delay;
+    int numRetries;
 
     if (!AlsaPCMHandle) {		// alsa not running yet
 	// FIXME: if open fails for fe. pass-through, we never recover
@@ -1220,13 +1221,13 @@ static int AlsaSetup(int *freq, int *channels, int passthrough)
 	//Debug(3, "audio: %s [\n", __FUNCTION__);
 	AlsaPCMHandle = NULL;		// other threads should check handle
 	snd_pcm_close(handle);
-	if (AudioAlsaCloseOpenDelay) {
-	    usleep(50 * 1000);		// 50ms delay for alsa recovery
-	}
-	// FIXME: can use multiple retries
-	if (!(handle = AlsaOpenPCM(passthrough))) {
-	    return -1;
-	}
+
+    numRetries = 0;
+    while (!(handle = AlsaOpenPCM(passthrough)) && numRetries++ < 5) {
+        usleep(20 * 1000);
+    }
+    if (!handle)
+        return -1;
 	AlsaPCMHandle = handle;
 	//Debug(3, "audio: %s ]\n", __FUNCTION__);
     }
