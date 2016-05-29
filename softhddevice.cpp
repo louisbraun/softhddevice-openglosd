@@ -628,6 +628,44 @@ void cSoftOsd::Flush(void)
     Dirty = 0;
 }
 
+#ifdef USE_OPENGLOSD
+//Dummy OSD for OpenGL OSD if no X Server is available 
+class cDummyOsd : public cOsd {
+  public:
+    cDummyOsd(int Left, int Top, uint Level) : cOsd(Left, Top, Level) {}
+    virtual ~cDummyOsd() {}
+    virtual cPixmap *CreatePixmap(int Layer, const cRect &ViewPort, const cRect &DrawPort = cRect::Null) { 
+        (void)Layer; (void)ViewPort; (void)DrawPort;
+        return NULL; 
+    }
+    virtual void DestroyPixmap(cPixmap *Pixmap) { (void)Pixmap; }
+    virtual void DrawImage(const cPoint &Point, const cImage &Image) { (void)Point; (void)Image; }
+    virtual void DrawImage(const cPoint &Point, int ImageHandle) { (void) Point; (void)ImageHandle; }
+    virtual eOsdError CanHandleAreas(const tArea *Areas, int NumAreas) { (void)Areas; (void)NumAreas; return oeOk; }
+    virtual eOsdError SetAreas(const tArea *Areas, int NumAreas) { (void)Areas; (void)NumAreas; return oeOk; }
+    virtual void SaveRegion(int x1, int y1, int x2, int y2) { (void)x1; (void)y1; (void)x2; (void)y2; }
+    virtual void RestoreRegion(void) {}
+    virtual eOsdError SetPalette(const cPalette &Palette, int Area) { (void)Palette; (void)Area; return oeOk; }
+    virtual void DrawPixel(int x, int y, tColor Color) { (void)x; (void)y; (void)Color; }
+    virtual void DrawBitmap(int x, int y, const cBitmap &Bitmap, tColor ColorFg = 0, tColor ColorBg = 0, bool ReplacePalette = false, bool Overlay = false) {
+        (void)x; (void)y; (void)Bitmap; (void)ColorFg; (void)ColorBg; (void)ReplacePalette; (void)Overlay;
+    }
+    virtual void DrawText(int x, int y, const char *s, tColor ColorFg, tColor ColorBg, const cFont *Font, int Width = 0, int Height = 0, int Alignment = taDefault) {
+        (void)x; (void)y; (void)s; (void)ColorFg; (void)ColorBg; (void)Font; (void)Width; (void)Height; (void)Alignment;
+    }
+    virtual void DrawRectangle(int x1, int y1, int x2, int y2, tColor Color) {
+        (void)x1; (void)y1; (void)x2; (void)y2; (void)Color;
+    }
+    virtual void DrawEllipse(int x1, int y1, int x2, int y2, tColor Color, int Quadrants = 0) {
+        (void)x1; (void)y1; (void)x2; (void)y2; (void)Color; (void)Quadrants;
+    }
+    virtual void DrawSlope(int x1, int y1, int x2, int y2, tColor Color, int Type) {
+        (void)x1; (void)y1; (void)x2; (void)y2; (void)Color; (void)Type;
+    }
+    virtual void Flush(void) {}
+};
+#endif
+
 //////////////////////////////////////////////////////////////////////////////
 //	OSD provider
 //////////////////////////////////////////////////////////////////////////////
@@ -688,11 +726,12 @@ void cSoftOsdProvider::DropImageData(int ImageHandle)
 cOsd *cSoftOsdProvider::CreateOsd(int left, int top, uint level)
 {
 #ifdef USE_OPENGLOSD
-    dsyslog("[softhddev]%s: %d, %d, %d, using OpenGL OSD support\n", __FUNCTION__, left, top, level);
+    dsyslog("[softhddev]%s: left %d, top %d, level %d, using OpenGL OSD support\n", __FUNCTION__, left, top, level);
     if (StartOpenGlThread())
         return Osd = new cOglOsd(left, top, level, oglThread);
     //return dummy osd if shd is detached
-    return Osd = new cSoftOsd(left, top, 999);
+    dsyslog("[softhddev]OpenGl Thread not started successfully, using Dummy OSD");
+    return Osd = new cDummyOsd(left, top, 999);
 #else
     dsyslog("[softhddev]%s: %d, %d, %d\n", __FUNCTION__, left, top, level);
     return Osd = new cSoftOsd(left, top, level);
@@ -725,6 +764,7 @@ bool cSoftOsdProvider::StartOpenGlThread(void) {
     //only try to start worker thread if shd is attached
     //otherwise glutInit() crashes
     if (SuspendMode != NOT_SUSPENDED) {
+        dsyslog("[softhddev]detached - OpenGl Worker Thread not tried to start");
         return false;
     }
     if (oglThread.get()) {

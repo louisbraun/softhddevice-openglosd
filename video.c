@@ -6813,9 +6813,6 @@ static int VdpauInit(const char *display_name)
 	vdp_device_create_x11(XlibDisplay, DefaultScreen(XlibDisplay),
 	&VdpauDevice, &VdpauGetProcAddress);
 
-    Error(_("[softhddev: video/vdpau: created vdpaudevice %zu procadress %zu \n"),
-        VdpauDevice, VdpauGetProcAddress);
-
     if (status != VDP_STATUS_OK) {
 	Error(_("video/vdpau: Can't create vdp device on display '%s'\n"),
 	    display_name);
