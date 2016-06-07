@@ -191,6 +191,7 @@ static volatile int DoMakePrimary;	///< switch primary device to this
 #define SUSPEND_NORMAL		1	///< normal suspend mode
 #define SUSPEND_DETACHED	2	///< detached suspend mode
 static signed char SuspendMode;		///< suspend mode
+volatile char SoftIsPlayingVideo;       ///< stream contains video data
 
 //////////////////////////////////////////////////////////////////////////////
 
@@ -2865,6 +2866,13 @@ int cSoftHdDevice::PlayTsVideo(const uchar * data, int length)
 int cSoftHdDevice::PlayTsAudio(const uchar * data, int length)
 {
 #ifndef NO_TS_AUDIO
+    if (SoftIsPlayingVideo != cDevice::IsPlayingVideo()) {
+	SoftIsPlayingVideo = cDevice::IsPlayingVideo();
+#ifdef DEBUG
+	dsyslog("[softhddev]%s: SoftIsPlayingVideo: %d\n", __FUNCTION__, SoftIsPlayingVideo);
+#endif
+    }
+
     return::PlayTsAudio(data, length);
 #else
     AudioPoller();
@@ -3388,6 +3396,7 @@ bool cPluginSoftHdDevice::SetupParse(const char *name, const char *value)
     }
     if (!strcasecmp(name, "AudioBufferTime")) {
 	ConfigAudioBufferTime = atoi(value);
+	AudioSetBufferTime(ConfigAudioBufferTime);
 	return true;
     }
     if (!strcasecmp(name, "AudioAutoAES")) {
