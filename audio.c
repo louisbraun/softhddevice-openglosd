@@ -148,8 +148,6 @@ static int AudioBufferTime = 336;	///< audio buffer time in ms
 #ifdef USE_AUDIO_THREAD
 static pthread_t AudioThread;		///< audio play thread
 static pthread_mutex_t AudioMutex;	///< audio condition mutex
-pthread_mutex_t PTS_mutex;		///< PTS mutex
-pthread_mutex_t ReadAdvance_mutex;	///< PTS mutex
 static pthread_cond_t AudioStartCond;	///< condition variable
 static char AudioThreadStop;		///< stop audio thread
 #else
@@ -170,12 +168,9 @@ static int AudioStereoDescent;		///< volume descent for stereo
 static int AudioVolume;			///< current volume (0 .. 1000)
 
 extern int VideoAudioDelay;		///< import audio/video delay
-extern volatile char SoftIsPlayingVideo;	///< stream contains video data
 
     /// default ring buffer size ~2s 8ch 16bit (3 * 5 * 7 * 8)
 static const unsigned AudioRingBufferSize = 3 * 5 * 7 * 8 * 2 * 1000;
-
-#define AUDIO_MIN_BUFFER_FREE (3072 * 8 * 8)
 
 static int AudioChannelsInHw[9];	///< table which channels are supported
 enum _audio_rates
@@ -862,7 +857,6 @@ static int AlsaPlayRingbuffer(void)
 #endif
 
 	for (;;) {
-  	    pthread_mutex_lock(&ReadAdvance_mutex);
 	    if (AlsaUseMmap) {
 		err = snd_pcm_mmap_writei(AlsaPCMHandle, p, frames);
 	    } else {
@@ -871,7 +865,6 @@ static int AlsaPlayRingbuffer(void)
 	    //Debug(3, "audio/alsa: wrote %d/%d frames\n", err, frames);
 	    if (err != frames) {
 		if (err < 0) {
-		    pthread_mutex_unlock(&ReadAdvance_mutex);
 		    if (err == -EAGAIN) {
 			continue;
 		    }
@@ -884,7 +877,7 @@ static int AlsaPlayRingbuffer(void)
 			snd_strerror(err));
 		    err = snd_pcm_recover(AlsaPCMHandle, err, 0);
 		    if (err >= 0) {
-			return 0;
+			continue;
 		    }
 		    Error(_("audio/alsa: snd_pcm_writei failed: %s\n"),
 			snd_strerror(err));
@@ -897,7 +890,6 @@ static int AlsaPlayRingbuffer(void)
 	    break;
 	}
 	RingBufferReadAdvance(AudioRing[AudioRingRead].RingBuffer, avail);
-	pthread_mutex_unlock(&ReadAdvance_mutex);
 	first = 0;
     }
 
@@ -968,7 +960,7 @@ static int AlsaThread(void)
 	}
 	break;
     }
-    if (/*!err ||*/ AudioPaused) {		// timeout or some commands
+    if (!err || AudioPaused) {		// timeout or some commands
 	return 1;
     }
 
@@ -2026,7 +2018,6 @@ static int AudioNextRing(void)
     int sample_rate;
     int channels;
     size_t used;
-    size_t remain;
 
     // update audio format
     // not always needed, but check if needed is too complex
@@ -2051,14 +2042,9 @@ static int AudioNextRing(void)
 	/ (AudioRing[AudioRingWrite].HwSampleRate *
 	    AudioRing[AudioRingWrite].HwChannels * AudioBytesProSample));
 
-    used = RingBufferUsedBytes(AudioRing[AudioRingRead].RingBuffer);
-    remain = RingBufferFreeBytes(AudioRing[AudioRingRead].RingBuffer);
     // stop, if not enough in next buffer
-    if (remain <= AUDIO_MIN_BUFFER_FREE) {
-	Debug(3, "audio: force start\n");
-    }
-    if (remain <= AUDIO_MIN_BUFFER_FREE || ((AudioVideoIsReady
-		|| !SoftIsPlayingVideo)
+    used = RingBufferUsedBytes(AudioRing[AudioRingRead].RingBuffer);
+    if (AudioStartThreshold * 4 < used || (AudioVideoIsReady
 	    && AudioStartThreshold < used)) {
 	return 0;
     }
@@ -2193,8 +2179,6 @@ static void AudioInitThread(void)
 {
     AudioThreadStop = 0;
     pthread_mutex_init(&AudioMutex, NULL);
-    pthread_mutex_init(&PTS_mutex, NULL);
-    pthread_mutex_init(&ReadAdvance_mutex, NULL);    
     pthread_cond_init(&AudioStartCond, NULL);
     pthread_create(&AudioThread, NULL, AudioPlayHandlerThread, NULL);
     pthread_setname_np(AudioThread, "softhddev audio");
@@ -2218,8 +2202,6 @@ static void AudioExitThread(void)
 	}
 	pthread_cond_destroy(&AudioStartCond);
 	pthread_mutex_destroy(&AudioMutex);
-	pthread_mutex_destroy(&PTS_mutex);
-	pthread_mutex_destroy(&ReadAdvance_mutex);  
 	AudioThread = 0;
     }
 }
@@ -2315,7 +2297,6 @@ void AudioEnqueue(const void *samples, int count)
 	}
     }
 
-    pthread_mutex_lock(&PTS_mutex);
     n = RingBufferWrite(AudioRing[AudioRingWrite].RingBuffer, buffer, count);
     if (n != (size_t) count) {
 	Error(_("audio: can't place %d samples in ring buffer\n"), count);
@@ -2327,7 +2308,6 @@ void AudioEnqueue(const void *samples, int count)
 
     if (!AudioRunning) {		// check, if we can start the thread
 	int skip;
-	size_t remain;
 
 	n = RingBufferUsedBytes(AudioRing[AudioRingWrite].RingBuffer);
 	skip = AudioSkip;
@@ -2349,12 +2329,8 @@ void AudioEnqueue(const void *samples, int count)
 	    n = RingBufferUsedBytes(AudioRing[AudioRingWrite].RingBuffer);
 	}
 	// forced start or enough video + audio buffered
-	remain = RingBufferFreeBytes(AudioRing[AudioRingRead].RingBuffer);
-	if (remain <= AUDIO_MIN_BUFFER_FREE) {
-	    Debug(3, "audio: force start\n");
-	}
-	if (remain <= AUDIO_MIN_BUFFER_FREE || ((AudioVideoIsReady
-		    || !SoftIsPlayingVideo)
+	// for some exotic channels * 4 too small
+	if (AudioStartThreshold * 4 < n || (AudioVideoIsReady
 		&& AudioStartThreshold < n)) {
 	    // restart play-back
 	    // no lock needed, can wakeup next time
@@ -2368,7 +2344,6 @@ void AudioEnqueue(const void *samples, int count)
 	    / (AudioRing[AudioRingWrite].HwSampleRate *
 	    AudioRing[AudioRingWrite].HwChannels * AudioBytesProSample);
     }
-    pthread_mutex_unlock(&PTS_mutex);
 }
 
 /**
@@ -2415,7 +2390,7 @@ void AudioVideoReady(int64_t pts)
 	// buffer ~15 video frames
 	// FIXME: HDTV can use smaller video buffer
 	skip =
-	    pts - 15 * 20 * 90 - AudioBufferTime * 90 - audio_pts -
+	    pts - 15 * 20 * 90 - AudioBufferTime * 90 - audio_pts +
 	    VideoAudioDelay;
 #ifdef DEBUG
 	fprintf(stderr, "%dms %dms %dms\n", (int)(pts - audio_pts) / 90,
@@ -2427,14 +2402,14 @@ void AudioVideoReady(int64_t pts)
 		/ (1000 * 90))
 		* AudioRing[AudioRingWrite].HwChannels * AudioBytesProSample;
 	    // FIXME: round to packet size
-	    Debug(3, "audio: sync advance %dms %d/%zd\n",
-		(skip * 1000) / (AudioRing[AudioRingWrite].HwSampleRate *
-		    AudioRing[AudioRingWrite].HwChannels *
-		    AudioBytesProSample), skip, used);
 	    if ((unsigned)skip > used) {
 		AudioSkip = skip - used;
 		skip = used;
 	    }
+	    Debug(3, "audio: sync advance %dms %d/%zd\n",
+		(skip * 1000) / (AudioRing[AudioRingWrite].HwSampleRate *
+		    AudioRing[AudioRingWrite].HwChannels *
+		    AudioBytesProSample), skip, used);
 	    RingBufferReadAdvance(AudioRing[AudioRingWrite].RingBuffer, skip);
 
 	    used = RingBufferUsedBytes(AudioRing[AudioRingWrite].RingBuffer);
@@ -2611,7 +2586,7 @@ int64_t AudioGetDelay(void)
 void AudioSetClock(int64_t pts)
 {
     if (AudioRing[AudioRingWrite].PTS != pts) {
-	Debug(3, "audio: sync set clock %s -> %s pts\n",
+	Debug(4, "audio: set clock %s -> %s pts\n",
 	    Timestamp2String(AudioRing[AudioRingWrite].PTS),
 	    Timestamp2String(pts));
     }
